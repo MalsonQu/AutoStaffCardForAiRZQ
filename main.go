@@ -1,10 +1,11 @@
 package main
 
 import (
+	_ "autoStaffCardForAiRZQ/Email"
+	"autoStaffCardForAiRZQ/Engine"
 	_ "autoStaffCardForAiRZQ/Model"
-	"autoStaffCardForAiRZQ/engine"
 )
 
 func main() {
-	engine.Run()
+	Engine.Run()
 }

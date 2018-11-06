@@ -1,8 +1,9 @@
-package engine
+package Engine
 
 import (
+	. "autoStaffCardForAiRZQ/Config"
+	"autoStaffCardForAiRZQ/Email"
 	"autoStaffCardForAiRZQ/Model"
-	"autoStaffCardForAiRZQ/email"
 	"fmt"
 	"github.com/franela/goreq"
 	"math"
@@ -17,7 +18,7 @@ type user struct {
 	UserName    string
 	WaitTime    int64
 	RequestBody *requestBody
-	goMail      *email.Email
+	goMail      *Email.Email
 }
 
 type requestBody struct {
@@ -33,11 +34,6 @@ type locationRange struct {
 	maxLat float64 // 最大纬度
 	minLng float64 // 最小经度
 	minLat float64 // 最小纬度
-}
-
-type waitTimeRange struct {
-	min int64
-	max int64
 }
 
 type requestQueryString struct {
@@ -78,79 +74,54 @@ type staffRequest struct {
 	Data    staffRequestData `json:"data"`
 }
 
-var jsonStaffRequest staffRequest
-
-// 基础经度
-var _baseLng = 126.649806
-
-// 基础纬度
-var _baseLat = 45.782213
+// 等待
+var wg = sync.WaitGroup{}
 
 // 经纬度范围
 var _locationRange locationRange
 
-// 时间范围
-var _waitTimeRange waitTimeRange
-
-// 等待
-var wg = sync.WaitGroup{}
-
 // 构建经纬度范围
 func buildLocationRange() {
 	earthR := 6371.0
-	dis := 0.01
-	dLng := (2 * math.Asin(math.Sin(dis/(2*earthR))/math.Cos(_baseLat*math.Pi/180))) * 180 / math.Pi
-	dLat := (dis / earthR) * 180 / math.Pi
+	dLng := (2 * math.Asin(math.Sin(Config.Global.PositionRange/(2*earthR))/math.Cos(Config.Global.BaseLat*math.Pi/180))) * 180 / math.Pi
+	dLat := (Config.Global.PositionRange / earthR) * 180 / math.Pi
 
 	_locationRange = locationRange{
-		maxLng: _baseLng + dLng,
-		maxLat: _baseLat + dLat,
-		minLng: _baseLng - dLng,
-		minLat: _baseLat - dLat,
+		maxLng: Config.Global.BaseLng + dLng,
+		maxLat: Config.Global.BaseLat + dLat,
+		minLng: Config.Global.BaseLng - dLng,
+		minLat: Config.Global.BaseLat - dLat,
 	}
-}
-
-// 构建等待时间
-func buildWaitTimeRange() {
-	_waitTimeRange = waitTimeRange{
-		min: 1,
-		max: 120,
-	}
-}
-
-// 构建维度和纬度
-func buildLocation(user *user) {
-	user.RequestBody.Lat = randLat()
-	user.RequestBody.Lng = randLng()
-	// 构建地址
-	buildAddress(user)
 }
 
 // 随机纬度
-func randLat() string {
+func randLat(minLat, maxLat float64) string {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-	return strconv.FormatFloat((r.Float64()*(_locationRange.maxLat-_locationRange.minLat))+_locationRange.minLat, 'f', 11, 64)
+	return strconv.FormatFloat((r.Float64()*(maxLat-minLat))+minLat, 'f', 11, 64)
 }
 
 // 随机经度
-func randLng() string {
+func randLng(minLng, maxLng float64) string {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-	return strconv.FormatFloat((r.Float64()*(_locationRange.maxLng-_locationRange.minLng))+_locationRange.minLng, 'f', 11, 64)
+	return strconv.FormatFloat((r.Float64()*(maxLng-minLng))+minLng, 'f', 11, 64)
 }
 
 // 随机等待时间
 func randWaitTime() int64 {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-	return r.Int63n(_waitTimeRange.max-_waitTimeRange.min) + _waitTimeRange.min
+	return r.Int63n(Config.Global.WaitTime.Max-Config.Global.WaitTime.Min) + Config.Global.WaitTime.Min
 }
 
 // 构建地址文字信息
 func buildAddress(user *user) {
+	user.RequestBody.Lng = randLng(_locationRange.minLng, _locationRange.maxLng)
+	user.RequestBody.Lat = randLat(_locationRange.minLat, _locationRange.maxLat)
+
 	queryString := requestQueryString{
-		"",
+		Config.DbMap.Ak,
 		user.RequestBody.Lat + "," + user.RequestBody.Lng,
 		"json",
 		"1",
@@ -221,8 +192,8 @@ func buildAddress(user *user) {
 			}
 		}
 		// 发送邮件
+		wg.Add(1)
 		go func() {
-			wg.Add(1)
 			user.goMail.StaffFailed(_status).Send()
 			(&Model.StaffLog{
 				ResultType:   "FAILED",
@@ -237,12 +208,17 @@ func buildAddress(user *user) {
 		return
 	}
 
-	user.RequestBody.Address = mapResultJson.Result.FormattedAddress + mapResultJson.Result.Pois[0].Name
+	if len(mapResultJson.Result.Pois) <= 0 {
+		user.RequestBody.Address = Config.Global.DefaultAddress
+	} else {
+		user.RequestBody.Address = mapResultJson.Result.FormattedAddress + mapResultJson.Result.Pois[0].Name
+	}
+
 	wg.Done()
 }
 
 // 生成用户信息
-func buildUserList() (*[]*user, error) {
+func getUserList() (*[]*user, error) {
 	var list []*user
 
 	userList, err := (&Model.User{}).GetAll()
@@ -252,15 +228,19 @@ func buildUserList() (*[]*user, error) {
 	}
 
 	for _, value := range *userList {
-		userInfo := user{
-			UserName: value.Name,
-			WaitTime: randWaitTime(),
-			RequestBody: &requestBody{
-				UserId: value.Id,
-			},
-			goMail: email.New().SetTo(value.Email),
-		}
-		list = append(list, &userInfo)
+		wg.Add(1)
+		go func(v *Model.User) {
+			userInfo := user{
+				UserName: v.Name,
+				WaitTime: randWaitTime(),
+				RequestBody: &requestBody{
+					UserId: v.Id,
+				},
+				goMail: Email.New().SetTo(v.Email),
+			}
+			list = append(list, &userInfo)
+			wg.Done()
+		}(value)
 	}
 
 	return &list, nil
@@ -273,8 +253,8 @@ func staffCard(user *user) {
 	user.RequestBody.Date = _timeSeed.Format("15:04")
 	mailData := _timeSeed.Format("15:04:05")
 
+	wg.Add(1)
 	go func() {
-		wg.Add(1)
 		user.goMail.StaffConfirm(mailData).Send()
 		wg.Done()
 	}()
@@ -296,7 +276,7 @@ func staffCard(user *user) {
 	request := goreq.Request{
 		Uri:         "http://hr.zihai.cn/index.php/interfaces/punchcard/staffcard",
 		Method:      "POST",
-		Timeout:     20 * time.Second,
+		Timeout:     30 * time.Second,
 		Body:        body.Encode(),
 		ContentType: "application/x-www-form-urlencoded; charset=UTF-8",
 		Host:        "hr.zihai.cn",
@@ -325,6 +305,8 @@ func staffCard(user *user) {
 
 	defer req.Body.Close()
 
+	var jsonStaffRequest staffRequest
+
 	req.Body.FromJsonTo(&jsonStaffRequest)
 
 	if jsonStaffRequest.Code != 200 {
@@ -342,8 +324,8 @@ func staffCard(user *user) {
 
 	_staffTime := time.Now().Format("15:04:05")
 	// 发送打卡成功的邮件
+	wg.Add(1)
 	go func() {
-		wg.Add(1)
 		user.goMail.StaffSuccess(_staffTime, jsonStaffRequest.Data.CheckData.StatusInfo, jsonStaffRequest.Data.CheckData.TypeExplain).Send()
 		// 记录数据库
 		(&Model.StaffLog{
@@ -360,25 +342,24 @@ func staffCard(user *user) {
 }
 
 func init() {
-	// 生成经纬度范围
 	buildLocationRange()
-	// 生成时间范围
-	buildWaitTimeRange()
 }
 
 func Run() {
 	// 构建用户列表
-	userList, err := buildUserList()
+	userList, err := getUserList()
+
+	wg.Wait()
 
 	if err != nil {
-		email.New().StaffFailed("构建用户列表出错").SetTo("").Send()
+		Email.New().StaffFailed("构建用户列表出错").SetTo(Config.Email.MasterEmail).Send()
 		return
 	}
 
 	// 开始执行
 	for _, value := range *userList {
 		wg.Add(1)
-		go buildLocation(value)
+		go buildAddress(value)
 	}
 	wg.Wait()
 
