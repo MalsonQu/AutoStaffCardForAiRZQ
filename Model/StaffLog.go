@@ -16,5 +16,5 @@ type StaffLog struct {
 func (m *StaffLog) CreateLog() {
 	o := orm.NewOrm()
 	m.Time = time.Now()
-	o.Insert(m)
+	_, _ = o.Insert(m)
 }

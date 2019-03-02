@@ -1,10 +1,10 @@
 package Engine
 
 import (
-	. "autoStaffCardForAiRZQ/Config"
-	"autoStaffCardForAiRZQ/Email"
-	"autoStaffCardForAiRZQ/Model"
 	"fmt"
+	. "github.com/MalsonQu/AutoStaffCardForAiRZQ/Config"
+	"github.com/MalsonQu/AutoStaffCardForAiRZQ/Email"
+	"github.com/MalsonQu/AutoStaffCardForAiRZQ/Model"
 	"github.com/franela/goreq"
 	"math"
 	"math/rand"
@@ -22,6 +22,7 @@ type user struct {
 }
 
 type requestBody struct {
+	OpenId  string `json:"openid"`  // 微信openId
 	UserId  uint64 `json:"userid"`  // 用户ID
 	Date    string `json:"date"`    // 签到日期
 	Lng     string `json:"jingdu"`  // 精度
@@ -119,100 +120,108 @@ func randWaitTime() int64 {
 func buildAddress(user *user) {
 	user.RequestBody.Lng = randLng(_locationRange.minLng, _locationRange.maxLng)
 	user.RequestBody.Lat = randLat(_locationRange.minLat, _locationRange.maxLat)
-
-	queryString := requestQueryString{
-		Config.DbMap.Ak,
-		user.RequestBody.Lat + "," + user.RequestBody.Lng,
-		"json",
-		"1",
-		"100",
-	}
-
-	res, err := goreq.Request{
-		Uri:         "http://api.map.baidu.com/geocoder/v2/",
-		Method:      "GET",
-		QueryString: queryString,
-		Accept:      "application/json",
-		ContentType: "application/json",
-		Timeout:     10 * time.Second,
-	}.Do()
-
-	if err != nil {
-		user.goMail.StaffFailed("经纬度换取地址文字失败").Send()
-		(&Model.StaffLog{
-			ResultType:   "FAILED",
-			ResultString: "经纬度换取地址文字失败",
-			User: &Model.User{
-				Id: user.RequestBody.UserId,
-			},
-		}).CreateLog()
-		wg.Done()
-		return
-	}
-
-	defer res.Body.Close()
-
-	var mapResultJson mapResult
-
-	res.Body.FromJsonTo(&mapResultJson)
-
-	_addressStatus := mapResultJson.Status
-
-	var _status string
-	if _addressStatus != 0 {
-		switch _addressStatus {
-		case 1:
-			_status = "百度服务器出错-" + "服务器内部错误"
-			break
-		case 2:
-			_status = "百度服务器出错-" + "请求参数非法"
-			break
-		case 3:
-			_status = "百度服务器出错-" + "权限校验失败"
-			break
-		case 4:
-			_status = "百度服务器出错-" + "配额校验失败"
-			break
-		case 5:
-			_status = "百度服务器出错-" + "ak不存在或者非法"
-			break
-		case 101:
-			_status = "百度服务器出错-" + "服务禁用"
-			break
-		case 102:
-			_status = "百度服务器出错-" + "不通过白名单或者安全码不对"
-			break
-		default:
-			if _addressStatus >= 200 && _addressStatus < 300 {
-				_status = "百度服务器出错-" + "无权限"
-			} else if _addressStatus >= 300 {
-				_status = "百度服务器出错-" + "配额错误"
-			} else {
-				_status = "百度服务器出错-" + "未知错误"
-			}
-		}
-		// 发送邮件
-		wg.Add(1)
-		go func() {
-			user.goMail.StaffFailed(_status).Send()
-			(&Model.StaffLog{
-				ResultType:   "FAILED",
-				ResultString: _status,
-				User: &Model.User{
-					Id: user.RequestBody.UserId,
-				},
-			}).CreateLog()
-			wg.Done()
-		}()
-		wg.Done()
-		return
-	}
-
-	if len(mapResultJson.Result.Pois) <= 0 {
-		user.RequestBody.Address = Config.Global.DefaultAddress
-	} else {
-		user.RequestBody.Address = mapResultJson.Result.FormattedAddress + mapResultJson.Result.Pois[0].Name
-	}
+	//user.RequestBody.Address = Config.Global.DefaultAddress
+	//queryString := requestQueryString{
+	//	Config.DbMap.Ak,
+	//	user.RequestBody.Lat + "," + user.RequestBody.Lng,
+	//	"json",
+	//	"1",
+	//	"100",
+	//}
+	//
+	//res, err := goreq.Request{
+	//	Uri:         "http://api.map.baidu.com/geocoder/v2/",
+	//	Method:      "GET",
+	//	QueryString: queryString,
+	//	Accept:      "application/json",
+	//	ContentType: "application/json",
+	//	Timeout:     10 * time.Second,
+	//}.Do()
+	//
+	//if err != nil {
+	//	user.goMail.StaffFailed("经纬度换取地址文字失败").Send()
+	//	(&Model.StaffLog{
+	//		ResultType:   "FAILED",
+	//		ResultString: "经纬度换取地址文字失败",
+	//		User: &Model.User{
+	//			Id: user.RequestBody.UserId,
+	//		},
+	//	}).CreateLog()
+	//	wg.Done()
+	//	return
+	//}
+	//
+	//defer func(s *goreq.Body) {
+	//	_ = s.Close()
+	//}(res.Body)
+	//
+	//var mapResultJson mapResult
+	//
+	//err = res.Body.FromJsonTo(&mapResultJson)
+	//
+	//var _addressStatus int
+	//
+	//if err != nil {
+	//	_addressStatus = 103
+	//}else{
+	//	_addressStatus = mapResultJson.Status
+	//}
+	//
+	//var _status string
+	//if _addressStatus != 0 {
+	//	switch _addressStatus {
+	//	case 1:
+	//		_status = "百度服务器出错-" + "服务器内部错误"
+	//		break
+	//	case 2:
+	//		_status = "百度服务器出错-" + "请求参数非法"
+	//		break
+	//	case 3:
+	//		_status = "百度服务器出错-" + "权限校验失败"
+	//		break
+	//	case 4:
+	//		_status = "百度服务器出错-" + "配额校验失败"
+	//		break
+	//	case 5:
+	//		_status = "百度服务器出错-" + "ak不存在或者非法"
+	//		break
+	//	case 101:
+	//		_status = "百度服务器出错-" + "服务禁用"
+	//		break
+	//	case 102:
+	//		_status = "百度服务器出错-" + "不通过白名单或者安全码不对"
+	//		break
+	//	default:
+	//		if _addressStatus >= 200 && _addressStatus < 300 {
+	//			_status = "百度服务器出错-" + "无权限"
+	//		} else if _addressStatus >= 300 {
+	//			_status = "百度服务器出错-" + "配额错误"
+	//		} else {
+	//			_status = "百度服务器出错-" + "未知错误"
+	//		}
+	//	}
+	//	// 发送邮件
+	//	wg.Add(1)
+	//	go func() {
+	//		user.goMail.StaffFailed(_status).Send()
+	//		(&Model.StaffLog{
+	//			ResultType:   "FAILED",
+	//			ResultString: _status,
+	//			User: &Model.User{
+	//				Id: user.RequestBody.UserId,
+	//			},
+	//		}).CreateLog()
+	//		wg.Done()
+	//	}()
+	//	wg.Done()
+	//	return
+	//}
+	//
+	//if len(mapResultJson.Result.Pois) <= 0 {
+	//	user.RequestBody.Address = Config.Global.DefaultAddress
+	//} else {
+	//	user.RequestBody.Address = mapResultJson.Result.FormattedAddress + mapResultJson.Result.Pois[0].Name
+	//}
 
 	wg.Done()
 }
@@ -224,6 +233,7 @@ func getUserList() (*[]*user, error) {
 	userList, err := (&Model.User{}).GetAll()
 
 	if err != nil {
+		fmt.Println(err.Error(), 236)
 		return nil, err
 	}
 
@@ -234,7 +244,9 @@ func getUserList() (*[]*user, error) {
 				UserName: v.Name,
 				WaitTime: randWaitTime(),
 				RequestBody: &requestBody{
-					UserId: v.Id,
+					UserId:  v.Id,
+					OpenId:  v.WeChatId,
+					Address: Config.Global.DefaultAddress,
 				},
 				goMail: Email.New().SetTo(v.Email),
 			}
@@ -250,7 +262,7 @@ func getUserList() (*[]*user, error) {
 func staffCard(user *user) {
 	_funcStartTime := time.Now().Unix()
 	_timeSeed := time.Unix(_funcStartTime+user.WaitTime, 0)
-	user.RequestBody.Date = _timeSeed.Format("15:04")
+	user.RequestBody.Date = _timeSeed.Format("2006年01月02日 15:04:05")
 	mailData := _timeSeed.Format("15:04:05")
 
 	wg.Add(1)
@@ -266,6 +278,7 @@ func staffCard(user *user) {
 
 	body := url.Values{}
 
+	body.Add("openid", user.RequestBody.OpenId)
 	body.Add("userid", strconv.FormatUint(user.RequestBody.UserId, 10))
 	body.Add("date", user.RequestBody.Date)
 	body.Add("jingdu", user.RequestBody.Lng)
@@ -274,9 +287,9 @@ func staffCard(user *user) {
 
 	// 开始打卡
 	request := goreq.Request{
-		Uri:         "http://hr.zihai.cn/index.php/interfaces/punchcard/staffcard",
+		Uri:         "https://hr.zihai.cn/index.php/interfaces/punchcard/staffcard",
 		Method:      "POST",
-		Timeout:     30 * time.Second,
+		Timeout:     60 * time.Second,
 		Body:        body.Encode(),
 		ContentType: "application/x-www-form-urlencoded; charset=UTF-8",
 		Host:        "hr.zihai.cn",
@@ -284,13 +297,14 @@ func staffCard(user *user) {
 		UserAgent:   "Mozilla/5.0 (Linux; Android 8.0; G8142 Build/47.1.A.16.20; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/57.0.2987.132 MQQBrowser/6.2 TBS/044306 Mobile Safari/537.36 MicroMessenger/6.7.3.1360(0x26070337) NetType/WIFI Language/zh_CN Process/tools",
 	}
 
-	request.AddHeader("X-Requested-With", "XMLHttpRequest")
+	request.AddHeader("X-Requested-With", "com.tencent.mm")
 	request.AddHeader("Referer", "http://hr.zihai.cn/personal/daka.php")
-	request.AddHeader("Accept-Language", "zh-CN,zh-CN;q=0.8,en-US;q=0.6")
+	request.AddHeader("Accept-Language", "zh-CN,en-US;q=0.9")
 
 	req, err := request.Do()
 
 	if err != nil {
+		fmt.Println(err.Error(), 306)
 		user.goMail.StaffFailed("打卡失败-" + err.Error()).Send()
 		(&Model.StaffLog{
 			ResultType:   "FAILED",
@@ -303,11 +317,27 @@ func staffCard(user *user) {
 		return
 	}
 
-	defer req.Body.Close()
+	defer func(s *goreq.Body) {
+		_ = s.Close()
+	}(req.Body)
 
 	var jsonStaffRequest staffRequest
 
-	req.Body.FromJsonTo(&jsonStaffRequest)
+	err = req.Body.FromJsonTo(&jsonStaffRequest)
+
+	if err != nil {
+		fmt.Println(err.Error(), 328)
+		user.goMail.StaffFailed("打卡失败-" + err.Error()).Send()
+		(&Model.StaffLog{
+			ResultType:   "FAILED",
+			ResultString: "打卡失败-" + err.Error(),
+			User: &Model.User{
+				Id: user.RequestBody.UserId,
+			},
+		}).CreateLog()
+		wg.Done()
+		return
+	}
 
 	if jsonStaffRequest.Code != 200 {
 		user.goMail.StaffFailed("打卡失败-" + jsonStaffRequest.Message).Send()
@@ -322,11 +352,12 @@ func staffCard(user *user) {
 		return
 	}
 
-	_staffTime := time.Now().Format("15:04:05")
 	// 发送打卡成功的邮件
 	wg.Add(1)
 	go func() {
-		user.goMail.StaffSuccess(_staffTime, jsonStaffRequest.Data.CheckData.StatusInfo, jsonStaffRequest.Data.CheckData.TypeExplain).Send()
+		//取消发送打卡成功的邮件
+		//_staffTime := time.Now().Format("15:04:05")
+		//user.goMail.StaffSuccess(_staffTime, jsonStaffRequest.Data.CheckData.StatusInfo, jsonStaffRequest.Data.CheckData.TypeExplain).Send()
 		// 记录数据库
 		(&Model.StaffLog{
 			ResultType:   "SUCCESS",
@@ -352,6 +383,7 @@ func Run() {
 	wg.Wait()
 
 	if err != nil {
+		fmt.Println(err.Error(), 384)
 		Email.New().StaffFailed("构建用户列表出错").SetTo(Config.Email.MasterEmail).Send()
 		return
 	}
@@ -368,5 +400,4 @@ func Run() {
 		go staffCard(value)
 	}
 	wg.Wait()
-
 }

@@ -48,7 +48,7 @@ var Config struct {
 }
 
 func init() {
-	yamlContent, err := ioutil.ReadFile("conf.yaml")
+	yamlContent, err := ioutil.ReadFile("./ASCFA_Conf.yaml")
 
 	if err != nil {
 		panic(err)

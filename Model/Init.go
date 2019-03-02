@@ -1,16 +1,22 @@
 package Model
 
 import (
-	. "autoStaffCardForAiRZQ/Config"
 	"bytes"
+	. "github.com/MalsonQu/AutoStaffCardForAiRZQ/Config"
 	"github.com/astaxie/beego/orm"
 	_ "github.com/go-sql-driver/mysql"
 	"net/url"
+	"os"
 )
 
 func init() {
 	// 注册驱动
-	orm.RegisterDriver("mysql", orm.DRMySQL)
+	err := orm.RegisterDriver("mysql", orm.DRMySQL)
+
+	if err != nil {
+		os.Exit(0)
+		return
+	}
 
 	var buffer bytes.Buffer
 
@@ -31,7 +37,12 @@ func init() {
 	_dataBaseUrl := buffer.String() + `?` + _params.Encode()
 
 	// 注册数据库
-	orm.RegisterDataBase("default", "mysql", _dataBaseUrl, 30)
+	err = orm.RegisterDataBase("default", "mysql", _dataBaseUrl, 30)
+
+	if err != nil {
+		os.Exit(0)
+		return
+	}
 
 	// 定义数据表
 	orm.RegisterModel(
@@ -39,5 +50,11 @@ func init() {
 		new(StaffLog),
 	)
 
-	orm.RunSyncdb("default", false, false)
+	err = orm.RunSyncdb("default", false, false)
+
+	if err != nil {
+		os.Exit(0)
+		return
+	}
+
 }

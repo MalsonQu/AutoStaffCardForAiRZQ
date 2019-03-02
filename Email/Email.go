@@ -1,8 +1,8 @@
 package Email
 
 import (
-	. "autoStaffCardForAiRZQ/Config"
 	"crypto/tls"
+	. "github.com/MalsonQu/AutoStaffCardForAiRZQ/Config"
 	"gopkg.in/gomail.v2"
 )
 
