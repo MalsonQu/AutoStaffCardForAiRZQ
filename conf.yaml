@@ -1,0 +1,25 @@
+global:
+  position_range: 0.01
+  base_lng: 126.649806
+  base_lat: 45.782213
+  wait_time:
+    min: 5
+    max: 120
+  default_address: 默认地址
+db:
+  host: 127.0.0.1
+  port: 3306
+  user_name: 用户名
+  password: 密码
+  table_name: 表名
+  charset: utf8mb4
+  location: Asia/Shanghai
+email:
+  master_email: 管理邮箱地址
+  email: 发送邮箱地址
+  password: 发送邮箱密码
+  host: smtp.exmail.qq.com
+  port: 465
+db_map:
+  ak: 百度地图AK
+  
