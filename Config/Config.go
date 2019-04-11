@@ -17,6 +17,7 @@ type global struct {
 	WaitTime       waitTime `yaml:"wait_time"`
 	DefaultAddress string   `yaml:"default_address"`
 	PublicKey      string   `yaml:"public_key"`
+	SendMail       bool     `yaml:"send_mail"`
 }
 
 type db struct {

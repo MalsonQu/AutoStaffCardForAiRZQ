@@ -40,6 +40,10 @@ func (t *Email) StaffFailed(str string) *Email {
 }
 
 func (t *Email) Send() {
+	if !Config.Global.SendMail {
+		return
+	}
+
 	dialer := gomail.NewDialer(
 		Config.Email.Host,
 		Config.Email.Port,
