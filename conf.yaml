@@ -6,6 +6,7 @@ global:
     min: 5
     max: 120
   default_address: 默认地址
+  public_key: '-----BEGIN PUBLIC KEY-----\nMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC34cWy4+M6J16McqW2TphbgUq6\n9xtl/HQvKJqYVaiExTDFxq6MCqxg+mECwpeUVFoWxxKro0kz0Crm2BiKjEB5ZTSL\ngKn/AaHBNDroBofdC7dGefFqTDWu0BzKbecFyFH8j3KthpxNWaLve1IcABpdIfa4\naMxArnTkhafd1y35pwIDAQAB\n-----END PUBLIC KEY-----'
 db:
   host: 127.0.0.1
   port: 3306

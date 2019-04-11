@@ -1,6 +1,11 @@
 package Engine
 
 import (
+	Crand "crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	. "github.com/MalsonQu/AutoStaffCardForAiRZQ/Config"
 	"github.com/MalsonQu/AutoStaffCardForAiRZQ/Email"
@@ -14,6 +19,9 @@ import (
 	"time"
 )
 
+var pubKey interface{}
+
+// 用户信息数据结构
 type user struct {
 	UserName    string
 	WaitTime    int64
@@ -21,6 +29,7 @@ type user struct {
 	goMail      *Email.Email
 }
 
+// 请求体数据结构
 type requestBody struct {
 	OpenId  string `json:"openid"`  // 微信openId
 	UserId  uint64 `json:"userid"`  // 用户ID
@@ -30,33 +39,12 @@ type requestBody struct {
 	Address string `json:"address"` // 地址文字
 }
 
+// 地址数据结构
 type locationRange struct {
 	maxLng float64 // 最大经度
 	maxLat float64 // 最大纬度
 	minLng float64 // 最小经度
 	minLat float64 // 最小纬度
-}
-
-type requestQueryString struct {
-	Ak       string `url:"ak"`
-	Location string `url:"location"`
-	Output   string `url:"output"`
-	Pois     string `url:"pois"`
-	Radius   string `url:"radius"`
-}
-
-type mapResultPois struct {
-	Name string `json:"name"`
-}
-
-type mapResultContent struct {
-	FormattedAddress string          `json:"formatted_address"`
-	Pois             []mapResultPois `json:"pois"`
-}
-
-type mapResult struct {
-	Status int              `json:"status"`
-	Result mapResultContent `json:"result"`
 }
 
 type staffRequestDataCheckData struct {
@@ -120,109 +108,6 @@ func randWaitTime() int64 {
 func buildAddress(user *user) {
 	user.RequestBody.Lng = randLng(_locationRange.minLng, _locationRange.maxLng)
 	user.RequestBody.Lat = randLat(_locationRange.minLat, _locationRange.maxLat)
-	//user.RequestBody.Address = Config.Global.DefaultAddress
-	//queryString := requestQueryString{
-	//	Config.DbMap.Ak,
-	//	user.RequestBody.Lat + "," + user.RequestBody.Lng,
-	//	"json",
-	//	"1",
-	//	"100",
-	//}
-	//
-	//res, err := goreq.Request{
-	//	Uri:         "http://api.map.baidu.com/geocoder/v2/",
-	//	Method:      "GET",
-	//	QueryString: queryString,
-	//	Accept:      "application/json",
-	//	ContentType: "application/json",
-	//	Timeout:     10 * time.Second,
-	//}.Do()
-	//
-	//if err != nil {
-	//	user.goMail.StaffFailed("经纬度换取地址文字失败").Send()
-	//	(&Model.StaffLog{
-	//		ResultType:   "FAILED",
-	//		ResultString: "经纬度换取地址文字失败",
-	//		User: &Model.User{
-	//			Id: user.RequestBody.UserId,
-	//		},
-	//	}).CreateLog()
-	//	wg.Done()
-	//	return
-	//}
-	//
-	//defer func(s *goreq.Body) {
-	//	_ = s.Close()
-	//}(res.Body)
-	//
-	//var mapResultJson mapResult
-	//
-	//err = res.Body.FromJsonTo(&mapResultJson)
-	//
-	//var _addressStatus int
-	//
-	//if err != nil {
-	//	_addressStatus = 103
-	//}else{
-	//	_addressStatus = mapResultJson.Status
-	//}
-	//
-	//var _status string
-	//if _addressStatus != 0 {
-	//	switch _addressStatus {
-	//	case 1:
-	//		_status = "百度服务器出错-" + "服务器内部错误"
-	//		break
-	//	case 2:
-	//		_status = "百度服务器出错-" + "请求参数非法"
-	//		break
-	//	case 3:
-	//		_status = "百度服务器出错-" + "权限校验失败"
-	//		break
-	//	case 4:
-	//		_status = "百度服务器出错-" + "配额校验失败"
-	//		break
-	//	case 5:
-	//		_status = "百度服务器出错-" + "ak不存在或者非法"
-	//		break
-	//	case 101:
-	//		_status = "百度服务器出错-" + "服务禁用"
-	//		break
-	//	case 102:
-	//		_status = "百度服务器出错-" + "不通过白名单或者安全码不对"
-	//		break
-	//	default:
-	//		if _addressStatus >= 200 && _addressStatus < 300 {
-	//			_status = "百度服务器出错-" + "无权限"
-	//		} else if _addressStatus >= 300 {
-	//			_status = "百度服务器出错-" + "配额错误"
-	//		} else {
-	//			_status = "百度服务器出错-" + "未知错误"
-	//		}
-	//	}
-	//	// 发送邮件
-	//	wg.Add(1)
-	//	go func() {
-	//		user.goMail.StaffFailed(_status).Send()
-	//		(&Model.StaffLog{
-	//			ResultType:   "FAILED",
-	//			ResultString: _status,
-	//			User: &Model.User{
-	//				Id: user.RequestBody.UserId,
-	//			},
-	//		}).CreateLog()
-	//		wg.Done()
-	//	}()
-	//	wg.Done()
-	//	return
-	//}
-	//
-	//if len(mapResultJson.Result.Pois) <= 0 {
-	//	user.RequestBody.Address = Config.Global.DefaultAddress
-	//} else {
-	//	user.RequestBody.Address = mapResultJson.Result.FormattedAddress + mapResultJson.Result.Pois[0].Name
-	//}
-
 	wg.Done()
 }
 
@@ -237,9 +122,11 @@ func getUserList() (*[]*user, error) {
 		return nil, err
 	}
 
+	// 循环用户
 	for _, value := range *userList {
 		wg.Add(1)
 		go func(v *Model.User) {
+			// 构建用户的信息
 			userInfo := user{
 				UserName: v.Name,
 				WaitTime: randWaitTime(),
@@ -258,19 +145,48 @@ func getUserList() (*[]*user, error) {
 	return &list, nil
 }
 
+// RSA加密
+func RsaEncrypt(originData string) (string, error) {
+	encryptedData, err := rsa.EncryptPKCS1v15(Crand.Reader, pubKey.(*rsa.PublicKey), []byte(originData))
+	return base64.StdEncoding.EncodeToString(encryptedData), err
+}
+
+func paramEncrypt(openId, userId, lng, lat string) (string, error) {
+	param, err := json.Marshal(map[string]string{
+		"openid": openId,
+		"userid": userId,
+		"jingdu": lng,
+		"weidu":  lat,
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	paramData := string(param)
+
+	return RsaEncrypt(paramData)
+}
+
 // 打卡
 func staffCard(user *user) {
+	// 获取当前时间
 	_funcStartTime := time.Now().Unix()
+	// 设置时间种子
 	_timeSeed := time.Unix(_funcStartTime+user.WaitTime, 0)
-	user.RequestBody.Date = _timeSeed.Format("2006年01月02日 15:04:05")
+	// 获取时间对象
+	user.RequestBody.Date = _timeSeed.Format("2006年01月02日 15:04:05 ")
+	//
 	mailData := _timeSeed.Format("15:04:05")
 
 	wg.Add(1)
 	go func() {
+		// 发送确认邮件
 		user.goMail.StaffConfirm(mailData).Send()
 		wg.Done()
 	}()
 
+	// 设置睡眠时间
 	_sleepTimeDifference := time.Now().Unix() - _funcStartTime
 
 	// 先睡下
@@ -278,11 +194,32 @@ func staffCard(user *user) {
 
 	body := url.Values{}
 
-	body.Add("openid", user.RequestBody.OpenId)
-	body.Add("userid", strconv.FormatUint(user.RequestBody.UserId, 10))
-	body.Add("date", user.RequestBody.Date)
-	body.Add("jingdu", user.RequestBody.Lng)
-	body.Add("weidu", user.RequestBody.Lat)
+	// 一会需要加密
+	// 构建需要加密数据
+	param, err := paramEncrypt(
+		user.RequestBody.OpenId,
+		strconv.FormatUint(user.RequestBody.UserId, 10),
+		user.RequestBody.Lng,
+		user.RequestBody.Lat,
+	)
+
+	// json 解析错误
+	if err != nil {
+		fmt.Println(err.Error(), 306)
+		user.goMail.StaffFailed("打卡失败-" + err.Error()).Send()
+		(&Model.StaffLog{
+			ResultType:   "FAILED",
+			ResultString: "打卡失败-" + err.Error(),
+			User: &Model.User{
+				Id: user.RequestBody.UserId,
+			},
+		}).CreateLog()
+		wg.Done()
+		return
+	}
+
+	body.Add("param", param)
+	body.Add("userok", "0")
 	body.Add("address", user.RequestBody.Address)
 
 	// 开始打卡
@@ -356,8 +293,8 @@ func staffCard(user *user) {
 	wg.Add(1)
 	go func() {
 		//取消发送打卡成功的邮件
-		//_staffTime := time.Now().Format("15:04:05")
-		//user.goMail.StaffSuccess(_staffTime, jsonStaffRequest.Data.CheckData.StatusInfo, jsonStaffRequest.Data.CheckData.TypeExplain).Send()
+		_staffTime := time.Now().Format("15:04:05")
+		user.goMail.StaffSuccess(_staffTime, jsonStaffRequest.Data.CheckData.StatusInfo, jsonStaffRequest.Data.CheckData.TypeExplain).Send()
 		// 记录数据库
 		(&Model.StaffLog{
 			ResultType:   "SUCCESS",
@@ -379,6 +316,10 @@ func init() {
 func Run() {
 	// 构建用户列表
 	userList, err := getUserList()
+
+	// 生成公钥
+	key, _ := base64.StdEncoding.DecodeString(Config.Global.PublicKey)
+	pubKey, _ = x509.ParsePKIXPublicKey(key)
 
 	wg.Wait()
 

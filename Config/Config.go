@@ -16,6 +16,7 @@ type global struct {
 	BaseLat        float64  `yaml:"base_lat"`
 	WaitTime       waitTime `yaml:"wait_time"`
 	DefaultAddress string   `yaml:"default_address"`
+	PublicKey      string   `yaml:"public_key"`
 }
 
 type db struct {
